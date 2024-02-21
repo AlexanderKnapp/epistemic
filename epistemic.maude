@@ -1,0 +1,431 @@
+fmod PAIR{X :: TRIV, Y :: TRIV} is
+  sort Pair{X, Y} .
+  op <_,_> : X$Elt Y$Elt -> Pair{X, Y} [ctor] .
+endfm
+
+view Pair{X :: TRIV, Y :: TRIV} from TRIV to PAIR{X, Y} is sort Elt to Pair{X, Y} . endv
+
+fmod RELATION{X :: TRIV} is
+  protecting PAIR{X, X} .
+
+  sort Relation{X} .
+  subsort Pair{X, X} < Relation{X} .
+  op empty : -> Relation{X} [ctor] .
+  op _,_ : Relation{X} Relation{X} -> Relation{X} [ctor assoc comm id: empty] .
+endfm
+ 
+view Relation{X :: TRIV} from TRIV to RELATION{X} is sort Elt to Relation{X} . endv
+
+
+fmod EL-SYNTAX is
+  protecting BOOL .
+
+  sort Prop .
+  sort Ag .
+
+  sort EFrm .
+  subsort Bool Prop < EFrm .
+
+  op !_ : EFrm -> EFrm [ctor prec 53] .
+  op _&_ : EFrm EFrm -> EFrm [ctor assoc comm prec 55] .
+  op _|_ : EFrm EFrm -> EFrm [ctor assoc comm prec 59] .
+  op _->_ : EFrm EFrm -> EFrm [ctor prec 61] .
+  op K_._ : Ag EFrm -> EFrm [ctor prec 65] .
+  op M_._ : Ag EFrm -> EFrm [ctor prec 65] .
+endfm
+
+view Ag from TRIV to EL-SYNTAX is sort Elt to Ag . endv
+view EFrm from TRIV to EL-SYNTAX is sort Elt to EFrm . endv
+
+fmod EL is
+  including EL-SYNTAX .
+  protecting SET{EFrm} .
+
+  vars A A' : Ag .
+  var P : Prop .
+  vars Phi Phi' Phi1 Phi2 : EFrm .
+  vars Phis Phi1s Phi2s : Set{EFrm} .
+
+  op neg : Set{EFrm} -> Set{EFrm} .
+  eq neg(empty) = empty .
+  eq neg((Phi, Phis)) = (! Phi), neg(Phis) .
+
+  --- "Propositionally" in 
+  op _pin_ : EFrm EFrm -> Bool .
+  eq Phi pin Phi = true .
+  eq (! Phi) pin Phi = true .
+  eq Phi pin (! Phi') = Phi pin Phi' .
+  eq Phi pin (Phi1 & Phi2) = (Phi pin Phi1) or (Phi pin Phi2) .
+  eq Phi pin (Phi1 | Phi2) = (Phi pin Phi1) or (Phi pin Phi2) .
+  eq Phi pin (Phi1 -> Phi2) = (Phi pin Phi1) or (Phi pin Phi2) .
+  eq Phi pin Phi' = false [owise] .
+
+  op some-pin : Set{EFrm} EFrm -> Bool .
+  eq some-pin((Phi, Phis), Phi') = (Phi pin Phi') or some-pin(Phis, Phi').
+  eq some-pin(Phis, Phi') = false [owise] .
+
+  --- Positive propagation
+  op prop-pos : EFrm Set{EFrm} -> EFrm .
+  eq prop-pos(Phi, (Phi, Phis)) = true .
+  eq prop-pos(Phi, ((! Phi), Phis)) = false .
+  eq prop-pos(! Phi, Phis) = ! prop-pos(Phi, Phis) .
+  eq prop-pos(Phi1 & Phi2, Phis) = prop-pos(Phi1, Phis) & prop-pos(Phi2, Phis) .
+  eq prop-pos(Phi1 | Phi2, Phis) = prop-pos(Phi1, Phis) | prop-pos(Phi2, Phis) .
+  eq prop-pos(Phi1 -> Phi2, Phis) = prop-pos(Phi1, Phis) -> prop-pos(Phi2, Phis) .
+  eq prop-pos(Phi, Phis) = Phi [owise] .
+
+  --- Negative propagation
+  op prop-neg : EFrm Set{EFrm} -> EFrm .
+  eq prop-neg(Phi, (Phi, Phis)) = false .
+  eq prop-neg(Phi, (! Phi, Phis)) = true .
+  eq prop-neg(! Phi, Phis) = ! prop-neg(Phi, Phis) .
+  eq prop-neg(Phi1 & Phi2, Phis) = prop-neg(Phi1, Phis) & prop-neg(Phi2, Phis) .
+  eq prop-neg(Phi1 | Phi2, Phis) = prop-neg(Phi1, Phis) | prop-neg(Phi2, Phis) .
+  eq prop-neg(Phi1 -> Phi2, Phis) = prop-neg(Phi1, Phis) -> prop-neg(Phi2, Phis) .
+  eq prop-neg(Phi, Phis) = Phi [owise] .
+
+  --- Positive and negative subformulae
+  op poss : EFrm -> Set{EFrm} .
+  op negs : EFrm -> Set{EFrm} .
+  eq poss(true) = true .
+  eq negs(true) = empty .
+  eq poss(false) = empty .
+  eq negs(false) = false .
+  eq poss(! Phi) = neg(negs(Phi)) . --- (! Phi)
+  eq negs(! Phi) = neg(poss(Phi)) . --- (! Phi)
+  eq poss(Phi1 & Phi2) = (Phi1 & Phi2), poss(Phi1), poss(Phi2) .
+  eq negs(Phi1 & Phi2) = (Phi1 & Phi2), intersection(negs(Phi1), negs(Phi2)) .
+  eq poss(Phi1 | Phi2) = (Phi1 | Phi2), intersection(poss(Phi1), poss(Phi2)) .
+  eq negs(Phi1 | Phi2) = (Phi1 | Phi2), negs(Phi1), negs(Phi2) .
+  eq poss(Phi1 -> Phi2) = (Phi1 -> Phi2), intersection(neg(negs(Phi1)), poss(Phi2)) .
+  eq negs(Phi1 -> Phi2) = (Phi1 -> Phi2), neg(poss(Phi1)), negs(Phi2) .
+  eq poss(K A . Phi) = (K A . Phi), poss(Phi) .
+  eq negs(K A . Phi) = (K A . Phi) .
+  eq poss(M A . Phi) = (M A . Phi), poss(! (K A . ! Phi)) .
+  eq negs(M A . Phi) = (M A . Phi), negs(! (K A . ! Phi)) .
+  eq poss(Phi) = Phi [owise] .
+  eq negs(Phi) = Phi [owise] .
+
+  --- Simplification
+  eq ! false = true .
+  eq ! true = false .
+  eq ! (! Phi) = Phi .
+  eq Phi & Phi = Phi .
+  eq Phi & true = Phi .
+  eq Phi & false = false .
+  eq (! Phi1) & (! Phi2) = ! (Phi1 | Phi2) .
+  eq Phi | Phi = Phi .
+  eq Phi | true = true .
+  eq Phi | false = Phi .
+  eq (! Phi1) | (! Phi2) = ! (Phi1 & Phi2) .
+  eq (! Phi1) | Phi2 = Phi1 -> Phi2 .
+  eq Phi -> Phi = true .
+  eq true -> Phi = Phi .
+  eq false -> Phi = true .
+  eq Phi -> true = true .
+  eq Phi -> false = ! Phi .
+  eq (! Phi1) -> Phi2 = Phi1 | Phi2 .
+
+  eq (Phi -> Phi1) & Phi1 = Phi1 .
+  eq ((Phi -> Phi1) | Phi2) & (Phi1 | Phi2) = Phi1 | Phi2 .
+
+  ceq Phi1 & Phi2 = Phi1 & prop-pos(Phi2, Phi1s)
+    if Phi1s := poss(Phi1) /\ some-pin(Phi1s, Phi2) .
+  ceq Phi1 | Phi2 = Phi1 | prop-neg(Phi2, Phi1s)
+    if Phi1s := negs(Phi1) /\ some-pin(Phi1s, Phi2) .
+  ceq Phi1 -> Phi2 = Phi1 -> prop-pos(Phi2, Phi1s)
+    if Phi1s := poss(Phi1) /\ some-pin(Phi1s, Phi2) .
+  ceq Phi1 -> Phi2 = prop-neg(Phi1, Phi2s) -> Phi2
+    if Phi2s := negs(Phi2) /\ some-pin(Phi2s, Phi1) .
+
+  eq K A . false = false .
+  eq K A . true = true .
+  eq (K A . Phi) & Phi = Phi .
+  eq (K A . Phi) | Phi = Phi .
+  eq (K A . Phi) -> Phi = true .
+  eq (K A . (K A' . Phi)) & Phi = Phi .
+  eq (K A . (K A' . Phi)) | Phi = Phi .
+  eq (K A . (K A' . Phi)) -> Phi = true .
+
+  eq ((K A . K A' . Phi1 | Phi2) -> Phi1) | Phi2 =
+     (K A . K A' . Phi1 | Phi2) -> (Phi1 | Phi2) .
+
+  eq (K A . Phi1) & (K A . Phi2) = K A . (Phi1 & Phi2) .
+  --- eq (K A . Phi1 -> Phi2) = (K A . Phi1) -> (K A . Phi2) .
+  ceq (K A . Phi1) -> (K A . Phi2) = (K A . Phi1) -> (K A . prop-pos(Phi2, Phi1s))
+    if Phi1s := poss(Phi1) /\ some-pin(Phi1s, Phi2) .
+  ceq (K A . Phi1) -> (K A . Phi2) = (K A . prop-neg(Phi1, Phi2s)) -> (K A . Phi2)
+    if Phi2s := negs(Phi2) /\ some-pin(Phi2s, Phi1) .
+
+  op ctxtl : EFrm EFrm -> EFrm .
+  ceq ctxtl(Phi1, Phi2) = prop-pos(Phi2, Phi1s)
+    if Phi1s := poss(Phi1) /\ some-pin(Phi1s, Phi2) .
+  eq ctxtl(Phi1, Phi2) = Phi2 [owise] .
+endfm
+
+***(
+fmod EL-EXAMPLES is
+  protecting EL .
+
+  ops h : -> Prop .
+  ops R V : -> Ag .
+endfm
+
+red (K R . h) -> (K V . ((K R . h) -> h)) .
+red K V . ((K R . h) -> h) .
+
+quit .
+)***
+
+
+fmod EACT-DOMAINS is
+  sorts EAPnt EAStr EAct .
+endfm
+
+view EAPnt from TRIV to EACT-DOMAINS is sort Elt to EAPnt . endv
+view EAct from TRIV to EACT-DOMAINS is sort Elt to EAct . endv
+
+fmod EACT is
+  protecting EL-SYNTAX .
+  including EACT-DOMAINS .
+  protecting SET{EAPnt} .
+  protecting RELATION{EAPnt} .
+  protecting MAP{Ag, Relation{EAPnt}} .
+  protecting MAP{EAPnt, EFrm} .
+
+  op <_,_,_> : Set{EAPnt} Map{Ag, Relation{EAPnt}} Map{EAPnt, EFrm} -> EAStr [ctor] .
+  op F : EAStr -> Map{Ag, Relation{EAPnt}} .
+  op pre : EAStr -> Map{EAPnt, EFrm} .
+
+  var Fs : Map{Ag, Relation{EAPnt}} .
+  vars Pres : Map{EAPnt, EFrm} .
+  eq F(< _:Set{EAPnt}, Fs, Pres >) = Fs .
+  eq pre(< _:Set{EAPnt}, Fs, Pres >) = Pres .
+
+  op _@_ : EAStr EAPnt -> EAct [ctor] .
+  op pre : EAct -> EFrm .
+  op _@_ : EAct EAPnt -> EAct .
+
+  var S : EAStr .
+  vars Q Q' : EAPnt .
+  eq pre(S @ Q) = pre(S)[Q] .
+  eq (S @ Q) @ Q' = S @ Q' .
+endfm
+
+fmod EACT-EXAMPLES is
+  protecting EACT .
+  protecting SET{Ag} .
+
+  ops k n : -> EAPnt .
+
+  vars A A0 A1 A2 : Ag .
+  var As As1 As2 : Set{Ag} .
+  var Phi : EFrm .
+
+  --- "Public" announcement to a group of agents
+  op Pub : EFrm Set{Ag} -> EAct .
+  eq Pub(Phi, As) = < (k), PubStrF(As), (k |-> Phi) > @ k .
+  op PubStrF : Set{Ag} -> Map{Ag, Relation{EAPnt}} .
+  eq PubStrF(empty) = empty .
+  eq PubStrF((A, As)) = (A |-> < k, k >), PubStrF(As) .
+
+  --- "Private" announcement to the first group of agents which is a subgroup of the second group of agents
+  op Priv : Set{Ag} EFrm Set{Ag} -> EAct .
+  eq Priv(As1, Phi, As2) = PrivStr(As1, Phi, As2) @ k .
+  op PrivStr : Set{Ag} EFrm Set{Ag} -> EAStr .
+  eq PrivStr(As1, Phi, As2) = < (n, k), PrivStrF(As1, As2), (n |-> true, k |-> Phi) > .
+  op PrivStrF : Set{Ag} Set{Ag} -> Map{Ag, Relation{EAPnt}} .
+  eq PrivStrF(As1, (A2, As2)) = if A2 in As1
+                                then PrivStrF(As1, As2)
+                                else (A2 |-> (< n, n >, < k, k >, < n, k >, < k, n >)), PrivStrF(As1, As2)
+                                fi .
+  eq PrivStrF((A1, As1), empty) = A1 |-> (< n, n >, < k, k >), PrivStrF(As1, empty) .
+  eq PrivStrF(empty, empty) = empty .
+endfm
+
+fmod DEL-SYNTAX is
+  including EL-SYNTAX .
+  protecting EACT .
+
+  op [_]_ : EAct EFrm -> EFrm [ctor prec 67] .
+  op <_>_ : EAct EFrm -> EFrm [ctor prec 67] .
+endfm
+
+fmod DEL is
+  protecting DEL-SYNTAX .
+
+  op dK : Ag EAct EFrm -> EFrm .
+  op dK : Ag Relation{EAPnt} EAct EFrm -> EFrm .
+
+  vars Q Q' : EAPnt .
+  vars Ps Ps1 Ps2 : Relation{EAPnt} .
+  var S : EAStr .
+  var A : Ag .
+  var Phi : EFrm .
+  eq dK(A, S @ Q, Phi) = dK(A, F(S)[A], S @ Q, Phi) .
+  eq dK(A, (< Q, Q' >, Ps), (S @ Q), Phi) = (K A . ([S @ Q'] Phi)) & dK(A, Ps, S @ Q, Phi) .
+  eq dK(A, Ps, (S @ Q), Phi) = true [owise].
+
+  var U : EAct .
+  vars Phi1 Phi2 : EFrm .
+  var P : Prop .
+  eq [U] false = ! pre(U) .
+  eq [U] true = true .
+  eq [U] P = pre(U) -> P .
+  eq [U] (! Phi) = pre(U) -> ! ([U] Phi) .
+  eq [U] (Phi1 & Phi2) = ([U] Phi1) & ([U] Phi2) .
+  eq [U] (Phi1 | Phi2) = ([U] Phi1) | ([U] Phi2) .
+  eq [U] (Phi1 -> Phi2) = ([U] Phi1) -> ([U] Phi2) .
+  eq [U] (K A . Phi) = pre(U) -> dK(A, U, Phi) .
+  eq [U] (M A . Phi) = [U](! (K A . ! Phi)) .
+
+  eq < U > Phi = pre(U) & ([U] Phi) .
+endfm
+
+fmod DEL-EXAMPLES is
+  protecting EL .
+  protecting DEL .
+  protecting EACT-EXAMPLES .
+
+  ops V R a1 a2 a3 : -> Ag .
+  ops h x1 : -> Prop .
+endfm
+
+***(
+red < Priv((R), K V . h, (R, V)) > true .
+red < Priv((R), K V . h, (R, V)) > K R . h .
+red < Priv((R), K V . h, (R, V)) > K V . h .
+red [ Priv((R), K V . h, (R, V)) ] K V . h .
+red < Priv((R), K V . h, (V)) > K V . (K R . h) .
+red < Priv((R), K V . h, (V)) > ! (K V . (K R . h)) .
+
+red < Priv((R), K V . h, (R, V)) @ k > K R . h .
+red [ Priv((R), K V . h, (R, V)) @ k ] K R . h .
+red < Priv((R), K V . h, (R, V)) @ k > K V . h .
+red [ Priv((R), K V . h, (R, V)) @ k ] K V . h .
+
+red < Priv((R), K V . h, (R, V)) @ n > K R . h .
+red [ Priv((R), K V . h, (R, V)) @ n ] K R . h .
+red < Priv((R), K V . h, (R, V)) @ n > K V . h .
+red [ Priv((R), K V . h, (R, V)) @ n ] K V . h .
+)***
+
+red ctxtl(K V . h, < Priv((R), K V . h, (R, V)) @ k > ! (K V . (K R . h))) .
+red ctxtl(true, < Priv((R), K V . h, (R, V)) @ n > ! (K V . (K R . h))) .
+red ctxtl(K R . h, < Priv((R, V), K R . h, (R, V)) @ k > ! (K V . (K R . h))) .
+
+***(
+red [ Priv((R), K V . h, (R, V)) @ k ] ! (K V . (K R . h)) .
+red [ Priv((R), K V . h, (R, V)) @ n ] ! (K V . (K R . h)) .
+red [ Priv((R, V), K R . h, (R, V)) @ k ] ! (K V . (K R . h)) .
+red [ Priv((a1, a2), K a1 . x1, (a1, a2, a3)) ] ((K a3 . x1) | (K a3 . ! x1)) .
+)***
+
+quit .
+
+fmod DEL-EXAMPLES-BASE is
+  protecting EL .
+  protecting DEL .
+  protecting EACT-EXAMPLES .
+
+  protecting QID .
+  protecting LIST{EFrm} .
+  protecting PAIR{Qid, EAct} .
+  protecting LIST{Pair{Qid, EAct}} .
+  protecting PAIR{Qid, EFrm} .
+  protecting PAIR{Pair{Qid, EFrm}, EFrm} .
+  protecting LIST{Pair{Pair{Qid, EFrm}, EFrm}} .
+
+  op fcs : -> List{EFrm} .
+  op uds : -> List{Pair{Qid, EAct}} .
+
+  var N : Qid .
+  var U : EAct .
+  var UDs : List{Pair{Qid, EAct}} .
+  var Phi : EFrm .
+  var Phis : List{EFrm} .
+
+  op all : -> List{Pair{Pair{Qid, EFrm}, EFrm}} .
+  eq all = all(uds, fcs) .
+  op all : List{Pair{Qid, EAct}} List{EFrm} -> List{Pair{Pair{Qid, EFrm}, EFrm}} .
+  eq all(nil, Phis) = nil .
+  eq all(< N, U > UDs, Phis) = all0(< N, U >, Phis) all(UDs, Phis) .
+  op all0 : Pair{Qid, EAct} List{EFrm} -> List{Pair{Pair{Qid, EFrm}, EFrm}} .
+  eq all0(< N, U >, nil) = nil .
+  eq all0(< N, U >, Phi Phis) = < < N, Phi >, < U > Phi > all0(< N, U >, Phis) .
+endfm
+
+fmod RESCUE is
+  including DEL-EXAMPLES-BASE .
+
+  ops h : -> Prop .
+  ops R V : -> Ag .
+
+  --- eq fcs = (K R . h) (K V . h) (K V . (K R . h)) .
+  eq fcs = ! (K V . (K R . h)) .
+  eq uds = < 'Pk, Priv((R), K V . h, (R, V)) >
+           < 'Pn, Priv((R), K V . h, (R, V)) @ n >
+           < 'P, Priv((R, V), K R . h, (R, V)) > .
+endfm
+
+--- red all .
+
+fmod ABP is
+  including DEL-EXAMPLES-BASE .
+
+  ops x : -> Prop .
+  ops R S : -> Ag .
+
+  eq fcs =
+***(
+           (K S . x)
+           (K S . ! x)
+           ((K S . x) | (K S . ! x))
+           ((K R . x) | (K R . ! x))
+           (K R . K S . x)
+           (K S . (K R . x) | (K R . ! x))
+)***
+           (K R . K S . (K R . x) | (K R . ! x))
+           (K R . ((K S . x) -> (K S . ((K R . x) | (K R . ! x)))))
+***(
+           (K R . K S . K R . x)
+           (K S . K R . K S . (K R . x) | (K R . ! x))
+)***
+           .
+  eq uds =
+***(
+)***
+           < 'PkSx, Priv((R), K S . x, (S, R)) @ k >
+           < 'PnSx, Priv((R), K S . x, (S, R)) @ n >
+***(
+           < 'PkSnx, Priv((R), K S . ! x, (S, R)) @ k >
+           < 'PnSnx, Priv((R), K S . ! x, (S, R)) @ n >
+           < 'PkSRvx, Priv((R), K S . ((K R . x) | (K R . ! x)), (S, R)) @ k >
+           < 'PnSRvx, Priv((R), K S . ((K R . x) | (K R . ! x)), (S, R)) @ n >
+)***
+           .
+endfm
+
+--- red all .
+red [ Priv((R), K S . x, (S, R)) @ k ] (K R . ((K S . x) -> (K S . ((K R . x) | (K R . ! x))))) .
+
+fmod THREE is
+  including DEL-EXAMPLES-BASE .
+
+  ops x1 x2 x3 : -> Prop .
+  ops a1 a2 a3 : -> Ag .
+
+  eq fcs = ***(
+           (K a1 . x1) (K a1 . ! x1)
+           ((K a2 . x1) | (K a2 . ! x1))
+           )***
+           ((K a3 . x1) | (K a3 . ! x1))
+           .
+  eq uds = < 'P12, Priv((a1, a2), K a1 . x1, (a1, a2, a3)) >
+           < 'P13, Priv((a1, a3), K a1 . x1, (a1, a2, a3)) >
+           .
+endfm
+
+--- red all .
+
+quit .
