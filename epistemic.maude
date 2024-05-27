@@ -128,6 +128,8 @@ fmod EL is
 
   eq (Phi -> Phi1) & Phi1 = Phi1 .
   eq ((Phi -> Phi1) | Phi2) & (Phi1 | Phi2) = Phi1 | Phi2 .
+  eq (Phi1 -> Phi) & (Phi2 -> Phi) = (Phi1 | Phi2) -> Phi .
+  eq Phi1 | (Phi2 & ! Phi1) = Phi1 | Phi2 .
 
   ceq Phi1 & Phi2 = Phi1 & prop-pos(Phi2, Phi1s)
     if Phi1s := poss(Phi1) /\ some-pin(Phi1s, Phi2) .
@@ -146,12 +148,18 @@ fmod EL is
   eq (K A . (K A' . Phi)) & Phi = Phi .
   eq (K A . (K A' . Phi)) | Phi = Phi .
   eq (K A . (K A' . Phi)) -> Phi = true .
+  --- Negative introspection and truth
+  eq (K A . ! (K A . Phi)) = ! (K A . Phi) .
 
-  eq ((K A . K A' . Phi1 | Phi2) -> Phi1) | Phi2 =
-     (K A . K A' . Phi1 | Phi2) -> (Phi1 | Phi2) .
+  eq ! (K A . ! Phi) & (K A . Phi) = K A . Phi .
+  eq ! (K A . Phi) & (K A . ! Phi) = K A . ! Phi .
 
   eq (K A . Phi1) & (K A . Phi2) = K A . (Phi1 & Phi2) .
-  --- eq (K A . Phi1 -> Phi2) = (K A . Phi1) -> (K A . Phi2) .
+  eq ((K A . K A' . Phi1 | Phi2) -> Phi1) | Phi2 =
+     (K A . K A' . Phi1 | Phi2) -> (Phi1 | Phi2) .
+  eq ((K A . Phi) | (K A . ! Phi)) -> Phi = (K A . ! Phi) -> Phi .    
+  eq ((K A . Phi) | (K A . ! Phi)) -> ! Phi = (K A . Phi) -> ! Phi .    
+
   ceq (K A . Phi1) -> (K A . Phi2) = (K A . Phi1) -> (K A . prop-pos(Phi2, Phi1s))
     if Phi1s := poss(Phi1) /\ some-pin(Phi1s, Phi2) .
   ceq (K A . Phi1) -> (K A . Phi2) = (K A . prop-neg(Phi1, Phi2s)) -> (K A . Phi2)
@@ -243,15 +251,44 @@ fmod EACT-EXAMPLES is
   eq PrivStrF(empty, empty) = empty .
 endfm
 
-fmod DEL-SYNTAX is
-  including EL-SYNTAX .
+fmod ECACT is
   protecting EACT .
 
-  op [_]_ : EAct EFrm -> EFrm [ctor prec 67] .
-  op <_>_ : EAct EFrm -> EFrm [ctor prec 67] .
+  sort ECAct .
+  subsort EAct < ECAct .
+    
+  op __ : ECAct ECAct -> ECAct [ctor assoc comm] .
+  op pre : ECAct -> EFrm .
+
+  vars Us1 Us2 : ECAct .
+  eq pre(Us1 Us2) = pre(Us1) | pre(Us2).
+endfm
+
+fmod ECACT-EXAMPLES is
+  protecting EACT-EXAMPLES .
+  protecting ECACT .
+
+  op sndlos : Ag Ag Set{Ag} EFrm -> ECAct .
+  op sndrel : Ag Ag Set{Ag} EFrm -> ECAct .
+
+  vars A A' : Ag .
+  var As : Set{Ag} .
+  var Phi : EFrm .
+
+  eq sndlos(A, A', As, Phi) = (PrivStr(A', Phi, As) @ k) (PrivStr(A', Phi, As) @ n) .
+  eq sndrel(A, A', As, Phi) = Priv((A, A'), Phi, As) .
+endfm
+
+fmod DEL-SYNTAX is
+  including EL-SYNTAX .
+  protecting ECACT .
+
+  op [_]_ : ECAct EFrm -> EFrm [ctor prec 67] .
+  op <_>_ : ECAct EFrm -> EFrm [ctor prec 67] .
 endfm
 
 fmod DEL is
+  protecting EL .
   protecting DEL-SYNTAX .
 
   op dK : Ag EAct EFrm -> EFrm .
@@ -267,6 +304,7 @@ fmod DEL is
   eq dK(A, Ps, (S @ Q), Phi) = true [owise].
 
   var U : EAct .
+  vars Us Us1 Us2 : ECAct .
   vars Phi1 Phi2 : EFrm .
   var P : Prop .
   eq [U] false = ! pre(U) .
@@ -278,48 +316,55 @@ fmod DEL is
   eq [U] (Phi1 -> Phi2) = ([U] Phi1) -> ([U] Phi2) .
   eq [U] (K A . Phi) = pre(U) -> dK(A, U, Phi) .
   eq [U] (M A . Phi) = [U](! (K A . ! Phi)) .
+  eq [Us1 Us2] Phi = ([Us1] Phi) & ([Us2] Phi) .
 
-  eq < U > Phi = pre(U) & ([U] Phi) .
+  eq < Us > Phi = pre(Us) & ([Us] Phi) .
+
+  op repr : ECAct EFrm -> EFrm .
+  eq repr(Us, Phi) = ctxtl(pre(Us), < Us > Phi) .
 endfm
 
 fmod DEL-EXAMPLES is
-  protecting EL .
   protecting DEL .
-  protecting EACT-EXAMPLES .
+  protecting ECACT-EXAMPLES .
 
   ops V R a1 a2 a3 : -> Ag .
-  ops h x1 : -> Prop .
+  ops h x1 x2 x3 : -> Prop .
+
+  ops U1 U2 : -> EAct .
+  eq U1 = PrivStr(a2, K a1 . ! x1, (a1, a2)) @ k .
+  eq U2 = PrivStr(a2, K a1 .   x1, (a1, a2)) @ k .
+
+  ops Phi1 Phi1' Phi2 Phi3 : -> EFrm .
+  eq Phi1  = (K a1 . x1) .
+  eq Phi1' = (K a1 . ! x1) .
+  eq Phi2  = (K a2 . x1) | (K a2 . ! x1) .
+  eq Phi3 = K a1 . ((K a2 . x1) | (K a2 . ! x1)) .
+
+  ops U1 U1' U2 U2' U3 : -> EAct .
+  eq U1  = PrivStr(a2, Phi1, (a1, a2)) @ k .
+  eq U1' = PrivStr(a2, Phi1', (a1, a2)) @ k .
+  eq U2  = PrivStr(a2, Phi1, (a1, a2)) @ n .
+  eq U2' = PrivStr(a2, Phi1', (a1, a2)) @ n .
+  eq U3  = PrivStr((a1, a2), Phi2, (a1, a2)) @ k .
+
+  ops Phi4 Phi4' Phi5 Phi5' Phi6 Phi6' : -> EFrm .
+  eq Phi4 = (K a1 . M a2 . x1) .
+  eq Phi4' = (K a1 . M a2 . ! x1) .
+
+  ops Us1 : -> ECAct .
+  eq Us1 = U1 U1' .
+
+  op Fcs : -> Set{EFrm} .
+  eq Fcs = true, Phi1, Phi1', Phi2 .  
 endfm
 
-***(
-red < Priv((R), K V . h, (R, V)) > true .
-red < Priv((R), K V . h, (R, V)) > K R . h .
-red < Priv((R), K V . h, (R, V)) > K V . h .
-red [ Priv((R), K V . h, (R, V)) ] K V . h .
-red < Priv((R), K V . h, (V)) > K V . (K R . h) .
-red < Priv((R), K V . h, (V)) > ! (K V . (K R . h)) .
-
-red < Priv((R), K V . h, (R, V)) @ k > K R . h .
-red [ Priv((R), K V . h, (R, V)) @ k ] K R . h .
-red < Priv((R), K V . h, (R, V)) @ k > K V . h .
-red [ Priv((R), K V . h, (R, V)) @ k ] K V . h .
-
-red < Priv((R), K V . h, (R, V)) @ n > K R . h .
-red [ Priv((R), K V . h, (R, V)) @ n ] K R . h .
-red < Priv((R), K V . h, (R, V)) @ n > K V . h .
-red [ Priv((R), K V . h, (R, V)) @ n ] K V . h .
-)***
-
-red ctxtl(K V . h, < Priv((R), K V . h, (R, V)) @ k > ! (K V . (K R . h))) .
-red ctxtl(true, < Priv((R), K V . h, (R, V)) @ n > ! (K V . (K R . h))) .
-red ctxtl(K R . h, < Priv((R, V), K R . h, (R, V)) @ k > ! (K V . (K R . h))) .
-
-***(
-red [ Priv((R), K V . h, (R, V)) @ k ] ! (K V . (K R . h)) .
-red [ Priv((R), K V . h, (R, V)) @ n ] ! (K V . (K R . h)) .
-red [ Priv((R, V), K R . h, (R, V)) @ k ] ! (K V . (K R . h)) .
-red [ Priv((a1, a2), K a1 . x1, (a1, a2, a3)) ] ((K a3 . x1) | (K a3 . ! x1)) .
-)***
+red [ U3 ] Phi1 .
+red [ U3 ] Phi1' .
+red [ U3 ] Phi2 .
+red [ U3 ] Phi3 .
+red [ U3 ] Phi4 .
+red [ U3 ] Phi4' .
 
 quit .
 
@@ -369,6 +414,40 @@ fmod RESCUE is
 endfm
 
 --- red all .
+
+***(
+red < Priv((R), K V . h, (R, V)) > true .
+red < Priv((R), K V . h, (R, V)) > K R . h .
+red < Priv((R), K V . h, (R, V)) > K V . h .
+red [ Priv((R), K V . h, (R, V)) ] K V . h .
+red < Priv((R), K V . h, (V)) > K V . (K R . h) .
+red < Priv((R), K V . h, (V)) > ! (K V . (K R . h)) .
+
+red < Priv((R), K V . h, (R, V)) @ k > K R . h .
+red [ Priv((R), K V . h, (R, V)) @ k ] K R . h .
+red < Priv((R), K V . h, (R, V)) @ k > K V . h .
+red [ Priv((R), K V . h, (R, V)) @ k ] K V . h .
+
+red < Priv((R), K V . h, (R, V)) @ n > K R . h .
+red [ Priv((R), K V . h, (R, V)) @ n ] K R . h .
+red < Priv((R), K V . h, (R, V)) @ n > K V . h .
+red [ Priv((R), K V . h, (R, V)) @ n ] K V . h .
+
+red ctxtl(K V . h, < Priv((R), K V . h, (R, V)) @ k > ! (K R . (K V . h))) .
+red ctxtl(true, < Priv((R), K V . h, (R, V)) @ n > ! (K R . (K V . h))) .
+red ctxtl(K R . h, < Priv((R, V), K R . h, (R, V)) @ k > ! (K R . (K V . h))) .
+)***
+
+***(
+red ctxtl(K V . h, < Priv((R), K V . h, (R, V)) @ k > ! (K V . (K R . h))) .
+red ctxtl(true, < Priv((R), K V . h, (R, V)) @ n > ! (K V . (K R . h))) .
+red ctxtl(K R . h, < Priv((R, V), K R . h, (R, V)) @ k > ! (K V . (K R . h))) .
+
+red [ Priv((R), K V . h, (R, V)) @ k ] ! (K V . (K R . h)) .
+red [ Priv((R), K V . h, (R, V)) @ n ] ! (K V . (K R . h)) .
+red [ Priv((R, V), K R . h, (R, V)) @ k ] ! (K V . (K R . h)) .
+red [ Priv((a1, a2), K a1 . x1, (a1, a2, a3)) ] ((K a3 . x1) | (K a3 . ! x1)) .
+)***
 
 fmod ABP is
   including DEL-EXAMPLES-BASE .
