@@ -72,6 +72,8 @@ fmod EL is
   eq prop-pos(Phi1 & Phi2, Phis) = prop-pos(Phi1, Phis) & prop-pos(Phi2, Phis) .
   eq prop-pos(Phi1 | Phi2, Phis) = prop-pos(Phi1, Phis) | prop-pos(Phi2, Phis) .
   eq prop-pos(Phi1 -> Phi2, Phis) = prop-pos(Phi1, Phis) -> prop-pos(Phi2, Phis) .
+  ceq prop-pos(K A . Phi, Phis) = false if prop-pos(Phi, Phis) = false .
+  ceq prop-pos(M A . Phi, Phis) = true if prop-pos(Phi, Phis) = true .
   eq prop-pos(Phi, Phis) = Phi [owise] .
 
   --- Negative propagation
@@ -82,6 +84,8 @@ fmod EL is
   eq prop-neg(Phi1 & Phi2, Phis) = prop-neg(Phi1, Phis) & prop-neg(Phi2, Phis) .
   eq prop-neg(Phi1 | Phi2, Phis) = prop-neg(Phi1, Phis) | prop-neg(Phi2, Phis) .
   eq prop-neg(Phi1 -> Phi2, Phis) = prop-neg(Phi1, Phis) -> prop-neg(Phi2, Phis) .
+  ceq prop-neg(K A . Phi, Phis) = false if prop-neg(Phi, Phis) = false .
+  ceq prop-neg(M A . Phi, Phis) = true if prop-neg(Phi, Phis) = true .
   eq prop-neg(Phi, Phis) = Phi [owise] .
 
   --- Positive and negative subformulae
@@ -91,6 +95,8 @@ fmod EL is
   eq negs(true) = empty .
   eq poss(false) = empty .
   eq negs(false) = false .
+  eq poss(P) = P .
+  eq negs(P) = P .
   eq poss(! Phi) = neg(negs(Phi)) . --- (! Phi)
   eq negs(! Phi) = neg(poss(Phi)) . --- (! Phi)
   eq poss(Phi1 & Phi2) = (Phi1 & Phi2), poss(Phi1), poss(Phi2) .
@@ -125,6 +131,7 @@ fmod EL is
   eq Phi -> true = true .
   eq Phi -> false = ! Phi .
   eq (! Phi1) -> Phi2 = Phi1 | Phi2 .
+  eq ! (Phi1 -> ! Phi2) = Phi1 & Phi2 .
 
   eq (Phi -> Phi1) & Phi1 = Phi1 .
   eq ((Phi -> Phi1) | Phi2) & (Phi1 | Phi2) = Phi1 | Phi2 .
@@ -142,7 +149,7 @@ fmod EL is
 
   eq K A . false = false .
   eq K A . true = true .
-  eq (K A . Phi) & Phi = Phi .
+  eq (K A . Phi) & Phi = (K A . Phi) .
   eq (K A . Phi) | Phi = Phi .
   eq (K A . Phi) -> Phi = true .
   eq (K A . (K A' . Phi)) & Phi = Phi .
@@ -150,7 +157,9 @@ fmod EL is
   eq (K A . (K A' . Phi)) -> Phi = true .
   --- Negative introspection and truth
   eq (K A . ! (K A . Phi)) = ! (K A . Phi) .
-
+  --- Phi & ! (K A . ! Phi) = ! (! Phi) & ! (K A . ! Phi) = ! ((! Phi) | (K A . ! Phi)) = ! (! Phi) = Phi
+  eq Phi & ! (K A . ! Phi) = Phi .
+  
   eq ! (K A . ! Phi) & (K A . Phi) = K A . Phi .
   eq ! (K A . Phi) & (K A . ! Phi) = K A . ! Phi .
 
@@ -158,7 +167,12 @@ fmod EL is
   eq ((K A . K A' . Phi1 | Phi2) -> Phi1) | Phi2 =
      (K A . K A' . Phi1 | Phi2) -> (Phi1 | Phi2) .
   eq ((K A . Phi) | (K A . ! Phi)) -> Phi = (K A . ! Phi) -> Phi .    
-  eq ((K A . Phi) | (K A . ! Phi)) -> ! Phi = (K A . Phi) -> ! Phi .    
+  eq ((K A . Phi) | (K A . ! Phi)) -> ! Phi = (K A . Phi) -> ! Phi .
+  
+  eq (K A . Phi) -> (K A' . ! Phi) = ! (K A . Phi) .
+  eq (K A . ! Phi) -> (K A' . Phi) = ! (K A . ! Phi) .
+  eq (K A . Phi) -> (K A' . (! Phi) & Phi') = ! (K A . Phi) .
+  eq (K A . ! Phi) -> (K A' . Phi & Phi') = ! (K A . ! Phi) .
 
   ceq (K A . Phi1) -> (K A . Phi2) = (K A . Phi1) -> (K A . prop-pos(Phi2, Phi1s))
     if Phi1s := poss(Phi1) /\ some-pin(Phi1s, Phi2) .
@@ -171,20 +185,28 @@ fmod EL is
   eq ctxtl(Phi1, Phi2) = Phi2 [owise] .
 endfm
 
-***(
 fmod EL-EXAMPLES is
   protecting EL .
 
-  ops h : -> Prop .
-  ops R V : -> Ag .
+  ops V R a1 a2 a3 : -> Ag .
+  ops h x1 x2 x3 : -> Prop .
 endfm
 
+***(
 red (K R . h) -> (K V . ((K R . h) -> h)) .
 red K V . ((K R . h) -> h) .
 
-quit .
-)***
+set trace builtin off .
+set trace condition off .
+set trace substitution off .
+set trace eq on .
+set trace on .
+red (K a3 . (K a1 . ! x1) -> ! ((K a1 . ! x1) -> x1)) .
+red poss(K a1 . ! x1) .
+red (K a1 . ! x1) -> x1 .
 
+quit .
+***)
 
 fmod EACT-DOMAINS is
   sorts EAPnt EAStr EAct .
@@ -310,6 +332,7 @@ fmod DEL is
   eq [U] false = ! pre(U) .
   eq [U] true = true .
   eq [U] P = pre(U) -> P .
+  eq [U] (! P) = pre(U) -> ! P .
   eq [U] (! Phi) = pre(U) -> ! ([U] Phi) .
   eq [U] (Phi1 & Phi2) = ([U] Phi1) & ([U] Phi2) .
   eq [U] (Phi1 | Phi2) = ([U] Phi1) | ([U] Phi2) .
@@ -318,39 +341,39 @@ fmod DEL is
   eq [U] (M A . Phi) = [U](! (K A . ! Phi)) .
   eq [Us1 Us2] Phi = ([Us1] Phi) & ([Us2] Phi) .
 
-  eq < Us > Phi = pre(Us) & ([Us] Phi) .
+  eq < Us > Phi = ! ([Us] (! Phi)) .
 
   op repr : ECAct EFrm -> EFrm .
-  eq repr(Us, Phi) = ctxtl(pre(Us), < Us > Phi) .
+  eq repr(Us, Phi) = ctxtl(pre(Us), [ Us ] Phi) .
 endfm
 
 fmod DEL-EXAMPLES is
   protecting DEL .
+  protecting EL-EXAMPLES .
   protecting ECACT-EXAMPLES .
 
-  ops V R a1 a2 a3 : -> Ag .
-  ops h x1 x2 x3 : -> Prop .
-
-  ops U1 U2 : -> EAct .
-  eq U1 = PrivStr(a2, K a1 . ! x1, (a1, a2)) @ k .
-  eq U2 = PrivStr(a2, K a1 .   x1, (a1, a2)) @ k .
-
-  ops Phi1 Phi1' Phi2 Phi3 : -> EFrm .
+  ops Phi1 Phi1' Phis1 Phi2 Phi3 : -> EFrm .
   eq Phi1  = (K a1 . x1) .
   eq Phi1' = (K a1 . ! x1) .
+  eq Phis1 = Phi1 | Phi1' .
   eq Phi2  = (K a2 . x1) | (K a2 . ! x1) .
   eq Phi3 = K a1 . ((K a2 . x1) | (K a2 . ! x1)) .
 
   ops U1 U1' U2 U2' U3 : -> EAct .
-  eq U1  = PrivStr(a2, Phi1, (a1, a2)) @ k .
-  eq U1' = PrivStr(a2, Phi1', (a1, a2)) @ k .
-  eq U2  = PrivStr(a2, Phi1, (a1, a2)) @ n .
-  eq U2' = PrivStr(a2, Phi1', (a1, a2)) @ n .
-  eq U3  = PrivStr((a1, a2), Phi2, (a1, a2)) @ k .
+  eq U1  = PrivStr(a2, Phi1, (a1, a2, a3)) @ k .
+  eq U1' = PrivStr(a2, Phi1', (a1, a2, a3)) @ k .
+  eq U2  = PrivStr(a2, Phi1, (a1, a2, a3)) @ n .
+  eq U2' = PrivStr(a2, Phi1', (a1, a2, a3)) @ n .
+  eq U3  = PrivStr((a1, a2), Phi2, (a1, a2, a3)) @ k .
 
-  ops Phi4 Phi4' Phi5 Phi5' Phi6 Phi6' : -> EFrm .
-  eq Phi4 = (K a1 . M a2 . x1) .
-  eq Phi4' = (K a1 . M a2 . ! x1) .
+  ops Us1 Us2 : -> ECAct .
+  eq Us1 = U1 U1' .
+  eq Us2 = PrivStr(a2, Phis1, (a1, a2, a3)) @ n .
+
+  ops Phi4 Phi5 Phi5' Phi6 Phi6' : -> EFrm .
+  eq Phi4 = repr(U3, Phis1) .
+  eq Phi5 = repr(U2, Phi4) .
+  eq Phi5' = repr(U2', Phi4) .
 
   ops Us1 : -> ECAct .
   eq Us1 = U1 U1' .
@@ -359,14 +382,41 @@ fmod DEL-EXAMPLES is
   eq Fcs = true, Phi1, Phi1', Phi2 .  
 endfm
 
-red [ U3 ] Phi1 .
-red [ U3 ] Phi1' .
-red [ U3 ] Phi2 .
-red [ U3 ] Phi3 .
-red [ U3 ] Phi4 .
-red [ U3 ] Phi4' .
-
-quit .
+***(
+--- red repr(Us1, Phis1) .
+--- red repr(Us2, Phis1) .
+--- red [ U1' ] (K a3 . x1) .
+set trace off .
+set trace builtin off .
+set trace condition off .
+set trace substitution off .
+set trace eq on .
+---  trace deselect pre dK F .
+---  set trace select on .
+set trace off .
+red [ U3 ] (K a3 . x1) . 
+red [ U3 ] (K a3 . ! x1) .
+red [ U3 ] ((K a3 . x1) | (K a3 . ! x1)) .
+--- red ((K a2 . x1) | (K a2 . ! x1)) -> (K a3 . x1 & ! (K a2 . ! x1)) .
+--- red (K a2 . ! x1) -> (K a3 . x1 & ! (K a2 . ! x1)) .
+--- red repr(Us1, K a3 . x1) .
+--- red repr(Us1, K a3 . ! x1) .
+--- red repr(Us1, ((K a3 . x1) | (K a3 . ! x1))) .
+--- red repr(U2 U2', ((K a1 . x1) | (K a1 . ! x1))) .
+--- red ctxtl((K a1 . x1) | (K a1 . ! x1), ((K a3 . x1) | (K a3 . ! x1))) .
+--- red [ Us1 ] ((K a3 . x1) | (K a3 . ! x1)) .
+--- red [ U1 ] (K a3 . x1) .
+--- red [ U1 ] (K a3 . ! x1) .
+--- red [ U1' ] (K a3 . x1) .
+--- red [ U1' ] (K a3 . ! x1) .
+--- red (K a1 . x1) -> ((K a3 . ! x1) | (K a3 . x1)) .
+--- red (K a1 . x1) -> (K a3 . ! x1) .
+--- red (K a1 . x1) -> (K a3 . x1) .
+--- red (K a1 . ! x1) -> ((K a3 . x1) & (K a3 . (K a1 . ! x1) -> x1)) .
+--- red (K a1 . x1) -> (K a3 . ! x1) .
+--- red repr(U1', (K a3 . x1) | (K a3 . ! x1)) .
+--- red repr(U3, Phis1) .
+)***
 
 fmod DEL-EXAMPLES-BASE is
   protecting EL .
@@ -381,6 +431,9 @@ fmod DEL-EXAMPLES-BASE is
   protecting PAIR{Pair{Qid, EFrm}, EFrm} .
   protecting LIST{Pair{Pair{Qid, EFrm}, EFrm}} .
 
+  sort Corr .
+  ops WP WLP REPR : -> Corr [ctor] .
+
   op fcs : -> List{EFrm} .
   op uds : -> List{Pair{Qid, EAct}} .
 
@@ -389,15 +442,21 @@ fmod DEL-EXAMPLES-BASE is
   var UDs : List{Pair{Qid, EAct}} .
   var Phi : EFrm .
   var Phis : List{EFrm} .
+  var C : Corr .
 
-  op all : -> List{Pair{Pair{Qid, EFrm}, EFrm}} .
-  eq all = all(uds, fcs) .
-  op all : List{Pair{Qid, EAct}} List{EFrm} -> List{Pair{Pair{Qid, EFrm}, EFrm}} .
-  eq all(nil, Phis) = nil .
-  eq all(< N, U > UDs, Phis) = all0(< N, U >, Phis) all(UDs, Phis) .
-  op all0 : Pair{Qid, EAct} List{EFrm} -> List{Pair{Pair{Qid, EFrm}, EFrm}} .
-  eq all0(< N, U >, nil) = nil .
-  eq all0(< N, U >, Phi Phis) = < < N, Phi >, < U > Phi > all0(< N, U >, Phis) .
+  ops allwp allwlp allrepr : -> List{Pair{Pair{Qid, EFrm}, EFrm}} .
+  eq allwp = all(uds, fcs, WP) .
+  eq allwlp = all(uds, fcs, WLP) .
+  eq allrepr = all(uds, fcs, REPR) .
+
+  op all : List{Pair{Qid, EAct}} List{EFrm} Corr -> List{Pair{Pair{Qid, EFrm}, EFrm}} .
+  eq all(nil, Phis, C) = nil .
+  eq all(< N, U > UDs, Phis, C) = all0(< N, U >, Phis, C) all(UDs, Phis, C) .
+  op all0 : Pair{Qid, EAct} List{EFrm} Corr -> List{Pair{Pair{Qid, EFrm}, EFrm}} .
+  eq all0(< N, U >, nil, C) = nil .
+  eq all0(< N, U >, Phi Phis, WP) = < < N, Phi >, < U > Phi > all0(< N, U >, Phis, WP) .
+  eq all0(< N, U >, Phi Phis, WLP) = < < N, Phi >, [ U ] Phi > all0(< N, U >, Phis, WLP) .
+  eq all0(< N, U >, Phi Phis, REPR) = < < N, Phi >, repr(U, Phi) > all0(< N, U >, Phis, REPR) .
 endfm
 
 fmod RESCUE is
@@ -406,16 +465,16 @@ fmod RESCUE is
   ops h : -> Prop .
   ops R V : -> Ag .
 
-  --- eq fcs = (K R . h) (K V . h) (K V . (K R . h)) .
-  eq fcs = ! (K V . (K R . h)) .
-  eq uds = < 'Pk, Priv((R), K V . h, (R, V)) >
-           < 'Pn, Priv((R), K V . h, (R, V)) @ n >
-           < 'P, Priv((R, V), K R . h, (R, V)) > .
+  eq fcs = (K R . h) (K V . h) (K V . (K R . h)) .
+  --- eq fcs = ! (K V . (K R . h)) .
+  eq uds = < 'V-Pk, Priv((R), K V . h, (R, V)) >
+           < 'V-Pn, Priv((R), K V . h, (R, V)) @ n >
+           < 'R-P, Priv((R, V), K R . h, (R, V)) > .
 endfm
 
---- red all .
-
 ***(
+red allrepr .
+
 red < Priv((R), K V . h, (R, V)) > true .
 red < Priv((R), K V . h, (R, V)) > K R . h .
 red < Priv((R), K V . h, (R, V)) > K V . h .
@@ -485,8 +544,10 @@ fmod ABP is
            .
 endfm
 
+***(
 --- red all .
 red [ Priv((R), K S . x, (S, R)) @ k ] (K R . ((K S . x) -> (K S . ((K R . x) | (K R . ! x))))) .
+)***
 
 fmod THREE is
   including DEL-EXAMPLES-BASE .
@@ -494,17 +555,24 @@ fmod THREE is
   ops x1 x2 x3 : -> Prop .
   ops a1 a2 a3 : -> Ag .
 
-  eq fcs = ***(
-           (K a1 . x1) (K a1 . ! x1)
-           ((K a2 . x1) | (K a2 . ! x1))
-           )***
-           ((K a3 . x1) | (K a3 . ! x1))
-           .
-  eq uds = < 'P12, Priv((a1, a2), K a1 . x1, (a1, a2, a3)) >
-           < 'P13, Priv((a1, a3), K a1 . x1, (a1, a2, a3)) >
-           .
+  eq fcs =
+       --- (K a1 . x1)
+       --- (K a1 . ! x1)
+       --- ((K a2 . x1) | (K a2 . ! x1))
+       --- (K a1 . ((K a2 . x1) | (K a2 . ! x1)))
+       --- (K a1 . ! (K a2 . ! x1))
+       --- (K a1 . ! (K a2 . x1))
+       ((K a3 . x1) | (K a3 . ! x1))
+       .
+  eq uds =
+       --- < 'U_x1_k, Priv((a2), (K a1 . x1), (a1, a2, a3)) @ k >
+       --- < 'U_!x1_k, Priv((a2), (K a1 . ! x1), (a1, a2, a3)) @ k >
+       --- < 'U_x1_n, Priv((a2), (K a1 . x1), (a1, a2, a3)) @ n >
+       --- < 'U_!x1_n, Priv((a2), (K a1 . ! x1), (a1, a2, a3)) @ n >
+       < 'U_2, Priv((a1, a2), ((K a2 . x1) | (K a2 . ! x1)), (a1, a2, a3)) @ k >
+       .
 endfm
 
---- red all .
+red allrepr .
 
 quit .
